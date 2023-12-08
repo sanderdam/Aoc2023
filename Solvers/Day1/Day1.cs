@@ -1,4 +1,6 @@
-public class Day1
+namespace AdventOfCode.Day1;
+
+public class Day1Solver
 {
     public void FirstPart()
     {
