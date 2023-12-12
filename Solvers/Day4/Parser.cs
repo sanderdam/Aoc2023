@@ -51,17 +51,17 @@ public class Parser
 
 public record Card(int CardNumber, int[] WinningNumbers, int[] NumbersYouHave)
 {
+    public int NumberOfMatches => NumbersYouHave.Where(x => WinningNumbers.Contains(x)).Count();
+
     public int Points
     {
         get
         {
-            var matchingNumbers = NumbersYouHave.Where(x => WinningNumbers.Contains(x));
-            
-            if(matchingNumbers.Count() == 0) 
+            if (NumberOfMatches == 0)
                 return 0;
 
             int points = 1;
-            for (int i = 1; i < matchingNumbers.Count(); i++)
+            for (int i = 1; i < NumberOfMatches; i++)
             {
                 points = points * 2;
             }
