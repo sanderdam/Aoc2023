@@ -10,15 +10,17 @@ public class Parser
     }
 
     public Maps Maps { get; set; }
-    public string[] InitialSeeds { get; set; }
+    public long[] InitialSeeds { get; set; }
+    public long[][] InitialSeedRanges { get; set; }
 
     public void Parse()
     {
         Maps = new Maps();
         InitialSeeds = ParseInitialSeeds(lines[0]);
+        InitialSeedRanges = ParseInitialSeedRanges(lines[0]);
 
         string currentSection = string.Empty;
-        IDictionary<long,long> currentMap = new Dictionary<long,long>();
+        IList<(long sourceStart, long destinationStart, long range)> currentMap = new List<(long sourceStart, long destinationStart, long range)>();
 
         for (int lineNo = 2; lineNo < lines.Length; lineNo++)
         {
@@ -29,11 +31,15 @@ public class Parser
 
             if (!char.IsDigit(currentLine[0]))
             {
-                // save current section
-                SaveCurrentMap(currentSection, currentMap);
+                // when no section is selected yet... this happens when line 3 is hitted
+                if (!string.IsNullOrWhiteSpace(currentSection) && currentMap.Count > 0)
+                {
+                    // save current section
+                    SaveCurrentMap(currentSection, currentMap);
+                }
 
                 // new section
-                currentMap = new Dictionary<long,long>();
+                currentMap = new List<(long sourceStart, long destinationStart, long range)>();
                 currentSection = currentLine.Replace(" map:", "");
                 continue;
             }
@@ -43,14 +49,14 @@ public class Parser
             long sourceRangeStart = long.Parse(splittedValues[1]);
             long rangeLength = long.Parse(splittedValues[2]);
 
-            for (int i = 0; i < rangeLength; i++)
-            {
-                currentMap.Add(sourceRangeStart + i, destinationRangeStart + i);
-            }
+            currentMap.Add((sourceRangeStart, destinationRangeStart, rangeLength));
         }
+
+        // Save the last map that was in progress
+        SaveCurrentMap(currentSection, currentMap);
     }
 
-    private void SaveCurrentMap(string section, IDictionary<long,long> mapToSave)
+    private void SaveCurrentMap(string section, IList<(long sourceStart, long destinationStart, long range)> mapToSave)
     {
         switch (section)
         {
@@ -78,21 +84,57 @@ public class Parser
         }
     }
 
-    private string[] ParseInitialSeeds(string firstLine) => firstLine.Substring(6).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToArray();
+    private long[] ParseInitialSeeds(string firstLine) => firstLine.Substring(6).Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(x => long.Parse(x)).ToArray();
+    private long[][] ParseInitialSeedRanges(string firstLine)
+    {
+        var rangeOfSeedsArray =  firstLine.Substring(6).Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(x => long.Parse(x)).ToArray();
+        var inPairs = rangeOfSeedsArray.Select((value,index) => new {value,index}).GroupBy(x => x.index / 2, x => x.value).Select(x => x.ToArray()).ToArray();
+        return inPairs;
+    }
 }
 
 public class Maps
 {
-    public IDictionary<long,long> SeedToSoil { get; set; }
-    public IDictionary<long,long> SoilToFertilizer { get; set; }
-    public IDictionary<long,long> FertilizerToWater { get; set; }
+    public long FindLocationForSeed(long seed)
+    {
+        long soil = CalculateDestinationForSourceInGivenMap(seed, SeedToSoil);
+        long fertilizer = CalculateDestinationForSourceInGivenMap(soil, SoilToFertilizer);
+        long water = CalculateDestinationForSourceInGivenMap(fertilizer, FertilizerToWater);
+        long light = CalculateDestinationForSourceInGivenMap(water, WaterToLight);
+        long temperature = CalculateDestinationForSourceInGivenMap(light, LightToTemperature);
+        long humidity = CalculateDestinationForSourceInGivenMap(temperature, TemperatureToHumidity);
+        long location = CalculateDestinationForSourceInGivenMap(humidity, HumidityToLocation);
 
-    public IDictionary<long,long> WaterToLight { get; set; }
+        return location;
+    }
 
-    public IDictionary<long,long> LightToTemperature { get; set; }
+    private long CalculateDestinationForSourceInGivenMap(long source, IList<(long sourceStart, long destinationStart, long range)> map)
+    {
+        foreach (var mapItem in map)
+        {
+            // when the source is in the range of the mapItem
+            if (source >= mapItem.sourceStart && source < (mapItem.sourceStart + mapItem.range))
+            {
+                // calculate the destination
+                long offsetFromStartIndex = source - mapItem.sourceStart;
+                return mapItem.destinationStart + offsetFromStartIndex;
+            }
+        }
 
-    public IDictionary<long,long> TemperatureToHumidity { get; set; }
+        // when no map is found, the destination is the same as source
+        return source;
+    }
 
-    public IDictionary<long,long> HumidityToLocation { get; set; }
+    public IList<(long sourceStart, long destinationStart, long range)> SeedToSoil { get; set; }
+    public IList<(long sourceStart, long destinationStart, long range)> SoilToFertilizer { get; set; }
+    public IList<(long sourceStart, long destinationStart, long range)> FertilizerToWater { get; set; }
+
+    public IList<(long sourceStart, long destinationStart, long range)> WaterToLight { get; set; }
+
+    public IList<(long sourceStart, long destinationStart, long range)> LightToTemperature { get; set; }
+
+    public IList<(long sourceStart, long destinationStart, long range)> TemperatureToHumidity { get; set; }
+
+    public IList<(long sourceStart, long destinationStart, long range)> HumidityToLocation { get; set; }
 }
 
